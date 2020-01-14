@@ -1,0 +1,10 @@
+#include "hexane.top"
+#include "hexane.itp"
+
+[ system ]
+; Name
+hexane_L4nm
+
+[ molecules ]
+; ; Compound      #mol number
+HEX 293
