@@ -39,7 +39,7 @@ class _Options(object):
 
         # check if value is of correct type
         if val is not None and type(val) is not value_type:
-            raise Exception("'{0}' cannot be of '{1}' type.".format(val, type(val)))
+            raise Exception("'{0}' cannot be of '{1}' type.".format(val, type(val).__name__))
 
         # set value to key in activeOptions
         self.activeOptions[key] = val
@@ -112,15 +112,15 @@ class SimulationOptions(_Options):
         for ensemble_args in self.ensembles:
             ensemble_args.set_active_all()
             if ensemble_args.ensemble in ['NVT', 'NPT']:
-                ensemble_args.userOptions['temperature'] = self.temperature
+                ensemble_args.userOptions['temperature'] = str(self.temperature)
                 ensemble_args.set_active('temperature', self.temperature, float,
                                          doc="Temperature of simulation")
             if ensemble_args.ensemble in ['NPT']:
-                ensemble_args.userOptions['pressure'] = self.pressure
+                ensemble_args.userOptions['pressure'] = str(self.pressure)
                 ensemble_args.set_active('pressure', self.pressure, float,
                                          doc="Pressure of simulation")
             if ensemble_args.integrator in ['Langevin']:
-                ensemble_args.userOptions['friction'] = self.collision_rate
+                ensemble_args.userOptions['friction'] = str(self.collision_rate)
                 ensemble_args.set_active('friction', 1.0, float,
                                          doc="Friction used in some integrators.")
 
