@@ -5,6 +5,9 @@ from simtk.openmm.app import *
 from simtk.openmm import *
 from simtk.unit import *
 from parmed import gromacs
+import mdtraj as md
+
+import numpy as np
 
 
 NONBONDED_METHODS = {'NoCutoff':            NonbondedForce.NoCutoff,
@@ -61,7 +64,6 @@ def _remove_barostat(system):
         if _is_barostat(force):
             i = system_forces.index(force)
             system_forces.pop(i)
-            return
 
 
 def _has_barostat(system):
@@ -78,8 +80,136 @@ def _is_barostat(force):
     return False
 
 
+def _set_positions(simulation, args):
+    t = md.load(args.incoord)
+    simulation.context.setPositions(t.xyz[0])
+
+
+def _minimize_energy(simulation, ensemble_args):
+    if ensemble_args.minimize:
+        simulation.minimizeEnergy()
+
+
+def _set_velocities_to_temperature(simulation, args):
+    if args.gentemp > 0.0:
+        simulation.context.setVelocitiesToTemperature(args.gentemp*kelvin)
+
+
+def _change_integrator(simulation, topology, integrator):
+    state = simulation.context.getState(getPositions=True, getVelocities=True)
+    box_vectors = state.getPeriodicBoxVectors()
+    positions = state.getPositions()
+    velocities = state.getVelocities()
+    system = simulation.system
+    system.setDefaultPeriodicBoxVectors(box_vectors)
+    simulation = Simulation(topology, system, integrator)
+    simulation.context.setPositions(positions)
+    simulation.context.setVelocities(velocities)
+    return simulation
+
+
+def _equilibrate(simulation, ensemble_args):
+    equilibration_steps = ensemble_args.equilibrate
+    if equilibration_steps > 0:
+        simulation.step(equilibration_steps)
+
+
+def _modify_reporters(simulation, ensemble_args):
+
+    # remove current reporters
+    while simulation.reporters:
+        simulation.reporters.pop()
+
+    # add reporters
+    _add_state_reporter(simulation, ensemble_args)
+    _add_dcd_reporter(simulation, ensemble_args)
+
+
+def _add_state_reporter(simulation, ensemble_args):
+    report_interval = ensemble_args.state_report_interval
+    if report_interval > 0:
+        filename = ensemble_args.outstate
+        state_data_reporter = StateDataReporter(filename, report_interval,
+                                                step=True, time=True,
+                                                potentialEnergy=True, kineticEnergy=True, totalEnergy=True,
+                                                temperature=True, volume=True, density=True,
+                                                speed=True, elapsedTime=True)
+        simulation.reporters.append(state_data_reporter)
+
+
+def _add_dcd_reporter(simulation, ensemble_args):
+    report_interval = ensemble_args.dcd_report_interval
+    if report_interval > 0:
+        filename = ensemble_args.outdcd
+        dcd_reporter = DCDReporter(filename, report_interval, enforcePeriodicBox=False)
+        simulation.reporters.append(dcd_reporter)
+
+
+# TODO: make this function more elegant
+def _run_simulation(simulation, args, ensemble_args):
+    if not args.ensembles:
+        simulation.step(ensemble_args.step)
+    else:   # TODO: make this part more elegant
+        volume_avg, energy_avg = _run_simulation_avg(simulation, ensemble_args)
+        if ensemble_args.ensemble == "NPT":
+            simulation = _simulation_avg_vol(simulation, volume_avg)
+            if args.ensembles[0].ensemble == "NVE":
+                simulation = _simulation_avg_energy(simulation, energy_avg)
+        elif ensemble_args.ensemble == "NVT":
+            if args.ensembles[0].ensemble == "NVE":
+                simulation = _simulation_avg_energy(simulation, energy_avg)
+        else:
+            raise Exception()
+    return simulation
+
+
+def _run_simulation_avg(simulation, ensemble_args):
+    volume = []
+    energy = []
+    total_steps = ensemble_args.step
+    step_interval = 25  # TODO: need way to specify interval between taking volume and energy
+    while total_steps > 0:
+        simulation.step(step_interval)
+        total_steps -= step_interval
+        state = simulation.context.getState(getEnergy=True)
+        volume.append(state.getPeriodicBoxVolume())
+        energy.append(state.getKineticEnergy() + state.getPotentialEnergy())
+    volume_avg = np.mean(volume)*nanometer**3
+    energy_avg = np.mean(volume)*kilojoule_per_mole
+    return volume_avg, energy_avg
+
+
+# TODO: combine this function with _simulation_avg_energy
+def _simulation_avg_vol(simulation, volume_avg):
+    step_interval = 25  # TODO: need way of specifying this
+    while True:
+        simulation.step(step_interval)
+        volume_curr = simulation.context.getState().getPeriodicBoxVolume()
+        if np.abs((volume_curr - volume_avg)/volume_avg) < 1e-3:
+            break
+    return simulation
+
+
+# TODO: combine this function with _simulation_avg_vol
+def _simulation_avg_energy(simulation, energy_avg):
+    step_interval = 25  # TODO: need way of specifying this
+    while True:
+        simulation.step(step_interval)
+        state = simulation.context.getState(getEnergy=True)
+        energy_curr = state.getKineticEnergy() + state.getPotentialEnergy()
+        if np.abs((energy_curr - energy_avg)/energy_avg) < 1e-3:
+            break
+    return simulation
+
+
+def _ensemble_name_list(args):
+    return [ensemble_args.ensemble for ensemble_args in args.ensembles]
+
+
 def main(parameter_file="params.in"):
     """
+    Creates an OpenMM system and runs simulations with the appropriate integrator using
+    specifications in an input file.
 
     :param parameter_file: input file containing parameters
     :return: None
@@ -104,13 +234,34 @@ def main(parameter_file="params.in"):
 
     # run simulation in each ensemble
     while args.ensembles:
+
+        # remove ensemble from queue
         ensemble_args = args.ensembles.pop(0)
+
+        # create integrator
         integrator = _create_integrator(ensemble_args)
         _modify_barostat(system, ensemble_args)
+
+        # initialize simulation
         if not completed_ensembles:
-            pass
+            simulation = Simulation(top.topology, system, integrator)
+            _set_positions(simulation, args)
+            _set_velocities_to_temperature(simulation, args)
         else:
-            pass
+            simulation = _change_integrator(simulation, top.topology, integrator)
+
+        # minimize energy and equilibrate
+        _minimize_energy(simulation, ensemble_args)
+        _equilibrate(simulation, ensemble_args)
+
+        # add and/or remove reporters
+        _modify_reporters(simulation, ensemble_args)
+
+        # run simulation
+        simulation = _run_simulation(simulation, args, ensemble_args)
+
+        # add ensemble to completed list
+        completed_ensembles.append(ensemble_args)
 
 
 if __name__ == "__main__":
