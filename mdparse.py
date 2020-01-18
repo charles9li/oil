@@ -145,7 +145,7 @@ class _EnsembleOptions(_Options):
                         allowed=self.ALLOWED_INTEGRATORS[self.ensemble])
         self.set_active('timestep', 1.0, float,
                         doc="Timestep in femtoseconds.")
-        self.set_active('minimize', True, bool,
+        self.set_active('minimize', False, bool,
                         doc="Whether or not to minimize energy")
         self.set_active('equilibrate', 0, int,
                         doc="Number of steps reserved for equilibration")
