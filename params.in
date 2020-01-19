@@ -1,15 +1,15 @@
 #
 # simulation inputs
 #
-topfile             dodecane_L4nm.top   # Gromacs toplogy file
+topfile             test/hexane.top     # Gromacs toplogy file
 grofile             box.gro             # Gromacs gro file
-incoord             dodecane_L4nm.pdb   # files with the input coordinates
+incoord             test/hexane.pdb     # files with the input coordinates
 
 #
 # forcefield settings
 #
 nonbonded_method			PME	        # (str)  "NoCutoff","CutoffNonPeriodic","CutoffPeriodic","Ewald","PME","LJPME"
-nonbonded_cutoff			1.2         # (float) nonbonded cutoff, in nm
+nonbonded_cutoff			0.0000001   # (float) nonbonded cutoff, in nm
 dispersion_correction		True        # (bool)  Isotropic long-range dispersion correction for periodic systems
 ewald_error_tolerance		0.0001	    # (float) Error tolerance for Ewald, PME, LJPME. Don't go below 5e-5 for PME unless double precision
 
@@ -21,33 +21,36 @@ gentemp                     298.0       # (float) velocity initialization temper
 integrator                  langevin    # (str)   verlet, langevin
 collision_rate              2.0         # (float) for langevin, this is the friction. units of 1/ps
 pressure			        1.0		    # (float) bar
-nbarostat                   25          # (int)
 
 #
 # simulation 1
 #
-ensemble                    NPT         # (str)    ensemble in which to run simulation in
-integrator                  Langevin    # (str)
-timestep                    1.0         # (float)  Time step in femtoseconds.
-minimize                    True	    # (bool)   Specify whether to minimize the energy before running dynamics.
-equilibrate                 20000       # (int)    Number of steps reserved for equilibration.
-steps                       1000000     # (int)    Number of steps for main simulation.
-outstate                    output.csv  # (str)    Name of state output file
-outdcd                      output.dcd  # (str)
-outnetcdf                   output.nc   # (str)
-state_report_interval       1000        # (int)    fs, Number of steps between every progress report.
-dcd_report_interval         0           # (int)    fs, SPecify a timestep interval for DCD reporter
+ensemble                    NPT                     # (str)    ensemble in which to run simulation in
+integrator                  Langevin                # (str)
+timestep                    1.0                     # (float)  Time step in femtoseconds.
+minimize                    True	                # (bool)   Specify whether to minimize the energy before running dynamics.
+equilibrate                 1000                    # (int)    Number of steps reserved for equilibration.
+steps                       1000                    # (int)    Number of steps for main simulation.
+outstate                    test/hexane_NPT.csv     # (str)    Name of state output file
+outdcd                      output.dcd              # (str)
+outnetcdf                   output.nc               # (str)
+state_report_interval       10                      # (int)    fs, Number of steps between every progress report.
+dcd_report_interval         0                       # (int)    fs, SPecify a timestep interval for DCD reporter
+savestate                   test/hexane_NPT.xml     # (str)    save state file name
+average_volume              True                    # (bool)
+average_energy              True                    # (bool)
 
 #
 # simulation 2
 #
-ensemble                    NVE         # (str)    ensemble in which to run simulation in
-integrator                  Verlet      # (str)
-timestep                    0.2         # (float)  Time step in femtoseconds.
-minimize                    True	    # (bool)   Specify whether to minimize the energy before running dynamics.
-equilibrate                 0           # (int)    Number of steps reserved for equilibration.
-steps                       5000000     # (int)    Number of steps for main simulation.
-outstate                    output.csv  # (str)    Name of state output file
-outdcd                      output.dcd  # (str)
-state_report_interval       1000        # (int)    fs, Number of steps between every progress report.
-dcd_report_interval         1000        # (int)    fs, Specify a timestep interval for DCD reporter.
+ensemble                    NVE                     # (str)    ensemble in which to run simulation in
+integrator                  Verlet                  # (str)
+timestep                    0.2                     # (float)  Time step in femtoseconds.
+minimize                    False	                # (bool)   Specify whether to minimize the energy before running dynamics.
+equilibrate                 0                       # (int)    Number of steps reserved for equilibration.
+steps                       1000                    # (int)    Number of steps for main simulation.
+outstate                    test/hexane_NVE.csv     # (str)    Name of state output file
+outdcd                      test/hexane_NVE.dcd     # (str)
+state_report_interval       10                      # (int)    fs, Number of steps between every progress report.
+dcd_report_interval         10                      # (int)    fs, Specify a timestep interval for DCD reporter.
+savestate                   test/hexane_NVE.xml     # (str)
