@@ -48,7 +48,7 @@ def _add_barostat(system, ensemble_args):
 
 
 def _remove_barostat(system):
-    system_forces = system.getForces
+    system_forces = system.getForces()
     for force in system_forces:
         if _is_barostat(force):
             i = system_forces.index(force)
@@ -153,7 +153,7 @@ def _add_dcd_reporter(simulation, ensemble_args):
 # TODO: add ability to save states after running
 def _run_simulation(simulation, ensemble_args):
     if not ensemble_args.average_volume and not ensemble_args.average_energy:
-        simulation.step(ensemble_args.step)
+        simulation.step(ensemble_args.steps)
     else:
         volume_avg, energy_avg = _run_simulation_avg(simulation, ensemble_args)
         _save_state(simulation, ensemble_args)
@@ -175,7 +175,7 @@ def _save_state(simulation, ensemble_args):
 def _run_simulation_avg(simulation, ensemble_args):
     volume = []
     energy = []
-    total_steps = ensemble_args.step
+    total_steps = ensemble_args.steps
     step_interval = 25  # TODO: need way to specify interval between taking volume and energy
     while total_steps > 0:
         simulation.step(step_interval)
@@ -183,8 +183,8 @@ def _run_simulation_avg(simulation, ensemble_args):
         state = simulation.context.getState(getEnergy=True)
         volume.append(state.getPeriodicBoxVolume())
         energy.append(state.getKineticEnergy() + state.getPotentialEnergy())
-    volume_avg = np.mean(volume)*nanometer**3
-    energy_avg = np.mean(volume)*kilojoule_per_mole
+    volume_avg = np.mean(volume)
+    energy_avg = np.mean(energy)
     return volume_avg, energy_avg
 
 
