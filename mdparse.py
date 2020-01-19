@@ -159,6 +159,12 @@ class _EnsembleOptions(_Options):
                         doc="Number of steps between every state report")
         self.set_active('dcd_report_interval', 0, int,
                         doc="Number of steps between every DCD report")
+        self.set_active('savestate', "", str,
+                        'xml file that contains state information')
+        self.set_active('average_volume', False, bool,
+                        doc="Whether or not to run simulation so that it averages volume.")
+        self.set_active('average_energy', False, bool,
+                        doc="Whether or not to run simulation so that it averages energy.")
 
 
 if __name__ == '__main__':

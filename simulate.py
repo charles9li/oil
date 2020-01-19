@@ -31,17 +31,6 @@ def _get_nonbonded_forces(system):
     return [force for force in system.getForces() if isinstance(force, NonbondedForce)]
 
 
-def _create_integrator(ensemble_args):
-    if ensemble_args.integrator == 'Langevin':
-        temperature = ensemble_args.temperature*kelvin
-        friction = ensemble_args.friction/picosecond
-        time_step = ensemble_args.timestep*femtosecond
-        return LangevinIntegrator(temperature, friction, time_step)
-    if ensemble_args.integrator == 'Verlet':
-        time_step = ensemble_args.timestep*femtosecond
-        return VerletIntegrator(time_step)
-
-
 def _modify_barostat(system, ensemble_args):
     ensemble = ensemble_args.ensemble
     if ensemble in ['NVE', 'NVT']:
@@ -80,6 +69,35 @@ def _is_barostat(force):
     return False
 
 
+def _create_simulation(topology, system, ensemble_args):
+    integrator = _create_integrator(ensemble_args)
+    simulation = Simulation(topology, system, integrator)
+    return simulation
+
+
+def _change_integrator(simulation, topology, system, ensemble_args):
+    state = simulation.context.getState(getPositions=True, getVelocities=True)
+    box_vectors = state.getPeriodicBoxVectors()
+    positions = state.getPositions()
+    velocities = state.getVelocities()
+    system.setDefaultPeriodicBoxVectors(*box_vectors)
+    simulation = _create_simulation(topology, system, ensemble_args)
+    simulation.context.setPositions(positions)
+    simulation.context.setVelocities(velocities)
+    return simulation
+
+
+def _create_integrator(ensemble_args):
+    if ensemble_args.integrator == 'Langevin':
+        temperature = ensemble_args.temperature*kelvin
+        friction = ensemble_args.friction/picosecond
+        time_step = ensemble_args.timestep*femtosecond
+        return LangevinIntegrator(temperature, friction, time_step)
+    if ensemble_args.integrator == 'Verlet':
+        time_step = ensemble_args.timestep*femtosecond
+        return VerletIntegrator(time_step)
+
+
 def _set_positions(simulation, args):
     t = md.load(args.incoord)
     simulation.context.setPositions(t.xyz[0])
@@ -93,19 +111,6 @@ def _minimize_energy(simulation, ensemble_args):
 def _set_velocities_to_temperature(simulation, args):
     if args.gentemp > 0.0:
         simulation.context.setVelocitiesToTemperature(args.gentemp*kelvin)
-
-
-def _change_integrator(simulation, topology, integrator):
-    state = simulation.context.getState(getPositions=True, getVelocities=True)
-    box_vectors = state.getPeriodicBoxVectors()
-    positions = state.getPositions()
-    velocities = state.getVelocities()
-    system = simulation.system
-    system.setDefaultPeriodicBoxVectors(box_vectors)
-    simulation = Simulation(topology, system, integrator)
-    simulation.context.setPositions(positions)
-    simulation.context.setVelocities(velocities)
-    return simulation
 
 
 def _equilibrate(simulation, ensemble_args):
@@ -145,22 +150,26 @@ def _add_dcd_reporter(simulation, ensemble_args):
         simulation.reporters.append(dcd_reporter)
 
 
-# TODO: make this function more elegant
-def _run_simulation(simulation, args, ensemble_args):
-    if not args.ensembles:
+# TODO: add ability to save states after running
+def _run_simulation(simulation, ensemble_args):
+    if not ensemble_args.average_volume and not ensemble_args.average_energy:
         simulation.step(ensemble_args.step)
-    else:   # TODO: make this part more elegant
+    else:
         volume_avg, energy_avg = _run_simulation_avg(simulation, ensemble_args)
-        if ensemble_args.ensemble == "NPT":
-            simulation = _simulation_avg_vol(simulation, volume_avg)
-            if args.ensembles[0].ensemble == "NVE":
-                simulation = _simulation_avg_energy(simulation, energy_avg)
-        elif ensemble_args.ensemble == "NVT":
-            if args.ensembles[0].ensemble == "NVE":
-                simulation = _simulation_avg_energy(simulation, energy_avg)
-        else:
-            raise Exception()
+        _save_state(simulation, ensemble_args)
+        if ensemble_args.average_volume:
+            simulation = _run_simulation_avg_vol(simulation, volume_avg)
+            if ensemble_args.average_energy:
+                _remove_barostat(simulation.system)
+        if ensemble_args.average_energy:
+            simulation = _run_simulation_avg_energy(simulation, energy_avg)
+    _save_state(simulation, ensemble_args)
     return simulation
+
+
+def _save_state(simulation, ensemble_args):
+    if ensemble_args.savestate is not "":
+        simulation.saveState(ensemble_args.savestate)
 
 
 def _run_simulation_avg(simulation, ensemble_args):
@@ -179,8 +188,7 @@ def _run_simulation_avg(simulation, ensemble_args):
     return volume_avg, energy_avg
 
 
-# TODO: combine this function with _simulation_avg_energy
-def _simulation_avg_vol(simulation, volume_avg):
+def _run_simulation_avg_vol(simulation, volume_avg):
     step_interval = 25  # TODO: need way of specifying this
     while True:
         simulation.step(step_interval)
@@ -190,8 +198,7 @@ def _simulation_avg_vol(simulation, volume_avg):
     return simulation
 
 
-# TODO: combine this function with _simulation_avg_vol
-def _simulation_avg_energy(simulation, energy_avg):
+def _run_simulation_avg_energy(simulation, energy_avg):
     step_interval = 25  # TODO: need way of specifying this
     while True:
         simulation.step(step_interval)
@@ -238,17 +245,16 @@ def main(parameter_file="params.in"):
         # remove ensemble from queue
         ensemble_args = args.ensembles.pop(0)
 
-        # create integrator
-        integrator = _create_integrator(ensemble_args)
+        # add or remove barostat
         _modify_barostat(system, ensemble_args)
 
         # initialize simulation
         if not completed_ensembles:
-            simulation = Simulation(top.topology, system, integrator)
+            simulation = _create_simulation(top.topology, system, ensemble_args)
             _set_positions(simulation, args)
             _set_velocities_to_temperature(simulation, args)
         else:
-            simulation = _change_integrator(simulation, top.topology, integrator)
+            simulation = _change_integrator(simulation, top.topology, system, ensemble_args)
 
         # minimize energy and equilibrate
         _minimize_energy(simulation, ensemble_args)
@@ -258,7 +264,7 @@ def main(parameter_file="params.in"):
         _modify_reporters(simulation, ensemble_args)
 
         # run simulation
-        simulation = _run_simulation(simulation, args, ensemble_args)
+        simulation = _run_simulation(simulation, ensemble_args)
 
         # add ensemble to completed list
         completed_ensembles.append(ensemble_args)
