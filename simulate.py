@@ -1,24 +1,46 @@
+"""
+The simulate module is used to run an OpenMM simulation. The mdparse module is called to parse user
+inputs from an input file and determine simulation conditions, force methods, and integrators.
+
+@author Charles Li <charlesli@ucsb.edu>
+"""
+
+# imports for command line arguments
 import argparse
 import mdparse
 
+# OpenMM imports
 from simtk.openmm.app import *
 from simtk.openmm import *
 from simtk.unit import *
 from parmed import gromacs
+
+# MDTraj import
 import mdtraj as md
 
+# Numpy import
 import numpy as np
 
-
+# dictionary of nonbonded methods
 NONBONDED_METHODS = {'NoCutoff':            NonbondedForce.NoCutoff,
                      'CutoffNonPeriodic':   NonbondedForce.CutoffNonPeriodic,
                      'Ewald':               NonbondedForce.Ewald,
                      'PME':                 NonbondedForce.PME,
                      'LJPME':               NonbondedForce.LJPME}
 
+# list of barostats
 BAROSTATS = [MonteCarloBarostat,
              MonteCarloAnisotropicBarostat,
              MonteCarloMembraneBarostat]
+
+
+def _create_system(top, args):
+    system = top.createSystem(nonbondedMethod=NoCutoff, ewaldErrorTolerance=args.ewald_error_tolerance,
+                              nonbondedCutoff=args.nonbonded_cutoff*nanometer)
+    for force in _get_nonbonded_forces(system):
+        force.setUseDispersionCorrection(args.dispersion_correction)
+        force.setNonbondedMethod(NONBONDED_METHODS[args.nonbonded_method])
+    return system
 
 
 def _get_nonbonded_forces(system):
@@ -32,6 +54,13 @@ def _get_nonbonded_forces(system):
 
 
 def _modify_barostat(system, ensemble_args):
+    """
+    Modifies the barostat depending on the ensemble in which the current simulation is running in.
+    Adds a barostat if running NPT and removes it if running NVE or NVT.
+
+    :param system: OpenMM system
+    :param ensemble_args: ensemble arguments
+    """
     ensemble = ensemble_args.ensemble
     if ensemble in ['NVE', 'NVT']:
         _remove_barostat(system)
@@ -52,7 +81,7 @@ def _remove_barostat(system):
     for force in system_forces:
         if _is_barostat(force):
             i = system_forces.index(force)
-            system_forces.pop(i)
+            system.removeForce(i)
 
 
 def _has_barostat(system):
@@ -69,22 +98,43 @@ def _is_barostat(force):
     return False
 
 
-def _create_simulation(topology, system, ensemble_args):
+def _create_simulation(simulation, topology, system, args, ensemble_args):
+    # retrieve positions, velocities, and box vectors
+    if simulation is None:
+        positions = _get_positions_from_incoord(args)
+        velocities = None
+        box_vectors = None
+    else:
+        state = simulation.context.getState(getPositions=True, getVelocities=True)
+        positions = state.getPositions()
+        velocities = state.getVelocities()
+        box_vectors = state.getPeriodicBoxVectors()
+
+    # create integrator
     integrator = _create_integrator(ensemble_args)
+
+    # create simulation
     simulation = Simulation(topology, system, integrator)
-    return simulation
 
-
-def _change_integrator(simulation, topology, system, ensemble_args):
-    state = simulation.context.getState(getPositions=True, getVelocities=True)
-    box_vectors = state.getPeriodicBoxVectors()
-    positions = state.getPositions()
-    velocities = state.getVelocities()
-    system.setDefaultPeriodicBoxVectors(*box_vectors)
-    simulation = _create_simulation(topology, system, ensemble_args)
+    # set positions
     simulation.context.setPositions(positions)
-    simulation.context.setVelocities(velocities)
+
+    # set velocities
+    if velocities is None:
+        _set_velocities_to_temperature(simulation, args)
+    else:
+        simulation.context.setVelocities(velocities)
+
+    # set box vectors
+    if box_vectors is not None:
+        simulation.context.setPeriodicBoxVectors(*box_vectors)
+
     return simulation
+
+
+def _get_positions_from_incoord(args):
+    t = md.load(args.incoord)
+    return t.xyz[0]
 
 
 def _create_integrator(ensemble_args):
@@ -98,19 +148,14 @@ def _create_integrator(ensemble_args):
         return VerletIntegrator(time_step)
 
 
-def _set_positions(simulation, args):
-    t = md.load(args.incoord)
-    simulation.context.setPositions(t.xyz[0])
+def _set_velocities_to_temperature(simulation, args):
+    if args.gentemp > 0.0:
+        simulation.context.setVelocitiesToTemperature(args.gentemp*kelvin)
 
 
 def _minimize_energy(simulation, ensemble_args):
     if ensemble_args.minimize:
         simulation.minimizeEnergy()
-
-
-def _set_velocities_to_temperature(simulation, args):
-    if args.gentemp > 0.0:
-        simulation.context.setVelocitiesToTemperature(args.gentemp*kelvin)
 
 
 def _equilibrate(simulation, ensemble_args):
@@ -150,8 +195,7 @@ def _add_dcd_reporter(simulation, ensemble_args):
         simulation.reporters.append(dcd_reporter)
 
 
-# TODO: add ability to save states after running
-def _run_simulation(simulation, ensemble_args):
+def _run_simulation(simulation, args, ensemble_args):
     if not ensemble_args.average_volume and not ensemble_args.average_energy:
         simulation.step(ensemble_args.steps)
     else:
@@ -160,10 +204,18 @@ def _run_simulation(simulation, ensemble_args):
         if ensemble_args.average_volume:
             simulation = _run_simulation_avg_vol(simulation, volume_avg)
             if ensemble_args.average_energy:
-                _remove_barostat(simulation.system)
+                simulation = _remove_barostat_from_simulation(simulation, args, ensemble_args)
         if ensemble_args.average_energy:
             simulation = _run_simulation_avg_energy(simulation, energy_avg)
     _save_state(simulation, ensemble_args)
+    return simulation
+
+
+def _remove_barostat_from_simulation(simulation, args, ensemble_args):
+    system = simulation.system
+    _remove_barostat(system)
+    topology = simulation.topology
+    simulation = _create_simulation(simulation, topology, system, args, ensemble_args)
     return simulation
 
 
@@ -193,6 +245,7 @@ def _run_simulation_avg_vol(simulation, volume_avg):
     while True:
         simulation.step(step_interval)
         volume_curr = simulation.context.getState().getPeriodicBoxVolume()
+        # TODO: have way to specify error
         if np.abs((volume_curr - volume_avg)/volume_avg) < 1e-3:
             break
     return simulation
@@ -204,6 +257,7 @@ def _run_simulation_avg_energy(simulation, energy_avg):
         simulation.step(step_interval)
         state = simulation.context.getState(getEnergy=True)
         energy_curr = state.getKineticEnergy() + state.getPotentialEnergy()
+        # TODO: have way to specify error
         if np.abs((energy_curr - energy_avg)/energy_avg) < 1e-3:
             break
     return simulation
@@ -230,14 +284,10 @@ def main(parameter_file="params.in"):
     top.box = gro.box
 
     # create system
-    system = top.createSystem(nonbondedMethod=NoCutoff, ewaldErrorTolerance=args.ewald_error_tolerance,
-                              nonbondedCutoff=args.nonbonded_cutoff*nanometer)
-    for force in _get_nonbonded_forces(system):
-        force.setUseDispersionCorrection(args.dispersion_correction)
-        force.setNonbondedMethod(NONBONDED_METHODS[args.nonbonded_method])
+    system = _create_system(top, args)
 
-    # create list of ensembles
-    completed_ensembles = []
+    # initialize simulation
+    simulation = None
 
     # run simulation in each ensemble
     while args.ensembles:
@@ -245,16 +295,11 @@ def main(parameter_file="params.in"):
         # remove ensemble from queue
         ensemble_args = args.ensembles.pop(0)
 
-        # add or remove barostat
+        # add barostat if in NPT
         _modify_barostat(system, ensemble_args)
 
         # initialize simulation
-        if not completed_ensembles:
-            simulation = _create_simulation(top.topology, system, ensemble_args)
-            _set_positions(simulation, args)
-            _set_velocities_to_temperature(simulation, args)
-        else:
-            simulation = _change_integrator(simulation, top.topology, system, ensemble_args)
+        simulation = _create_simulation(simulation, top.topology, system, args, ensemble_args)
 
         # minimize energy and equilibrate
         _minimize_energy(simulation, ensemble_args)
@@ -264,10 +309,7 @@ def main(parameter_file="params.in"):
         _modify_reporters(simulation, ensemble_args)
 
         # run simulation
-        simulation = _run_simulation(simulation, ensemble_args)
-
-        # add ensemble to completed list
-        completed_ensembles.append(ensemble_args)
+        simulation = _run_simulation(simulation, args, ensemble_args)
 
 
 if __name__ == "__main__":
