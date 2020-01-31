@@ -21,14 +21,17 @@ import mdtraj as md
 # Numpy import
 import numpy as np
 
-# dictionary of nonbonded methods
+# Custom statistical analysis module
+from openmm_stats import *
+
+# Dictionary of nonbonded methods
 NONBONDED_METHODS = {'NoCutoff':            NonbondedForce.NoCutoff,
                      'CutoffNonPeriodic':   NonbondedForce.CutoffNonPeriodic,
                      'Ewald':               NonbondedForce.Ewald,
                      'PME':                 NonbondedForce.PME,
                      'LJPME':               NonbondedForce.LJPME}
 
-# list of barostats
+# List of barostats
 BAROSTATS = [MonteCarloBarostat,
              MonteCarloAnisotropicBarostat,
              MonteCarloMembraneBarostat]
@@ -72,6 +75,8 @@ def _add_barostat(system, ensemble_args):
     if not _has_barostat(system):
         temperature = ensemble_args.temperature*kelvin
         pressure = ensemble_args.pressure*bar
+        # TODO: add functionality for other barostats
+        # TODO: add option to specify barostat interval
         barostat = MonteCarloBarostat(pressure, temperature)
         system.addForce(barostat)
 
@@ -196,10 +201,19 @@ def _add_dcd_reporter(simulation, ensemble_args):
 
 
 def _run_simulation(simulation, args, ensemble_args):
-    if not ensemble_args.average_volume and not ensemble_args.average_energy:
-        simulation.step(ensemble_args.steps)
-    else:
-        volume_avg, energy_avg = _run_simulation_avg(simulation, ensemble_args)
+    # Check that StateDataReporter is appended to simulation if averaging volume and/or energy
+    if ensemble_args.average_volume or ensemble_args.average_energy:
+        if ensemble_args.state_report_interval == 0:
+            raise ValueError("To average volume and/or energy, there must be a StateDataReporter "
+                             "appended to the simulation.")
+
+    # Step simulation
+    simulation.step(ensemble_args.steps)
+
+    # Average volume and/or energy if specified
+    if ensemble_args.average_volume or ensemble_args.average_energy:
+        volume_avg = compute_stats_from_file_by_column_name(ensemble_args.outstate, 'Box Volume (nm^3)')[2]
+        energy_avg = compute_stats_from_file_by_column_name(ensemble_args.outstate, 'Total Energy (kJ/mol)')[2]
         _save_state(simulation, ensemble_args)
         if ensemble_args.average_volume:
             simulation = _run_simulation_avg_vol(simulation, volume_avg)
@@ -222,22 +236,6 @@ def _remove_barostat_from_simulation(simulation, args, ensemble_args):
 def _save_state(simulation, ensemble_args):
     if ensemble_args.savestate is not "":
         simulation.saveState(ensemble_args.savestate)
-
-
-def _run_simulation_avg(simulation, ensemble_args):
-    volume = []
-    energy = []
-    total_steps = ensemble_args.steps
-    step_interval = 25  # TODO: need way to specify interval between taking volume and energy
-    while total_steps > 0:
-        simulation.step(step_interval)
-        total_steps -= step_interval
-        state = simulation.context.getState(getEnergy=True)
-        volume.append(state.getPeriodicBoxVolume())
-        energy.append(state.getKineticEnergy() + state.getPotentialEnergy())
-    volume_avg = np.mean(volume)
-    energy_avg = np.mean(energy)
-    return volume_avg, energy_avg
 
 
 def _run_simulation_avg_vol(simulation, volume_avg):
