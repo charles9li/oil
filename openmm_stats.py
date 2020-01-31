@@ -2,16 +2,24 @@ import numpy as np
 import scipy.stats as stat
 
 
-def _parse_file(file_handle):
+def parse_file(file_handle):
     if isinstance(file_handle, str):
         return open(file_handle, 'r')
     else:
         return file_handle
 
 
+def _column_to_index(file_handle, column_name):
+    file_handle = parse_file(file_handle)
+    file_handle.seek(0)
+    line = file_handle.readline()
+    cols = line.split('","')
+    return cols.index(column_name)
+
+
 def _extract_data(file_handle, column, warmup):
     # Parse file name
-    file_handle = _parse_file(file_handle)
+    file_handle = parse_file(file_handle)
     file_handle.seek(0)
 
     # Read data from file and copy specified column to 1-D Numpy array
@@ -97,3 +105,7 @@ def compute_stats(data):
 def compute_stats_from_file(file_handle, column):
     _, data, _ = _detect_warmup(file_handle, column)
     return compute_stats(data)
+
+
+def compute_stats_from_file_by_column_name(file_handle, column_name):
+    return compute_stats_from_file(file_handle, _column_to_index(file_handle, column_name))
