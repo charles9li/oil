@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from ast import literal_eval
+import argparse
 
 
 class _Options(object):
@@ -24,6 +25,7 @@ class _Options(object):
         msg     : A warning that is printed out if the option is not activated.
         """
         # find value of key
+        is_default = False
         if key in self.userOptions:
             try:
                 val = literal_eval(self.userOptions[key])
@@ -31,6 +33,7 @@ class _Options(object):
                 val = str(self.userOptions[key])
         else:
             val = default
+            is_default = True
 
         # check if value is allowed
         if type(allowed) is list:
@@ -43,9 +46,22 @@ class _Options(object):
 
         # set value to key in activeOptions
         self.activeOptions[key] = val
+        if is_default:
+            self._print_option_default(key, val)
+        else:
+            self._print_option_set(key, val)
 
         # adds documentation
         self.documentation[key] = doc
+
+    @staticmethod
+    def _print_option_set(key, val):
+        print("'{0}' parameter set to value of '{1}'.".format(key, val))
+
+    @staticmethod
+    def _print_option_default(key, val):
+        print(("No argument specified for the '{0}' parameter. "
+               "Setting '{0}' parameter to default value of '{1}'.").format(key, val))
 
 
 class SimulationOptions(_Options):
@@ -75,6 +91,10 @@ class SimulationOptions(_Options):
                         except IndexError:
                             val = None
                         option_parser.userOptions[key] = val
+
+        # print header
+        print("Parsing parameters from input file.")
+        print("===================================")
 
         # set parameters for input files
         self.set_active('topfile', 'system.top', str,
@@ -136,6 +156,11 @@ class _EnsembleOptions(_Options):
 
     def set_active_all(self):
 
+        # print header
+        print()
+        print("Parsing ensemble arguments.")
+        print("===========================")
+
         # set simulation parameters
         self.set_active('ensemble', 'NVE', str,
                         doc="Ensemble",
@@ -168,4 +193,5 @@ class _EnsembleOptions(_Options):
 
 
 if __name__ == '__main__':
-    args = SimulationOptions("params.in")
+    parser = argparse.ArgumentParser()
+    parser.parse_args()
