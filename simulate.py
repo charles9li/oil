@@ -213,7 +213,7 @@ def _run_simulation(simulation, args, ensemble_args):
     # Average volume and/or energy if specified
     if ensemble_args.average_volume or ensemble_args.average_energy:
         volume_avg = compute_stats_from_file_by_column_name(ensemble_args.outstate, 'Box Volume (nm^3)')[2]
-        energy_avg = compute_stats_from_file_by_column_name(ensemble_args.outstate, 'Total Energy (kJ/mol)')[2]
+        energy_avg = compute_stats_from_file_by_column_name(ensemble_args.outstate, 'Total Energy (kJ/mole)')[2]
         _save_state(simulation, ensemble_args)
         if ensemble_args.average_volume:
             simulation = _run_simulation_avg_vol(simulation, volume_avg)
