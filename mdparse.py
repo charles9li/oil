@@ -180,7 +180,7 @@ class _EnsembleOptions(_Options):
         # set ensemble options
         for parameter in _ENSEMBLE_PARAMETER_INFO:
             info = _ENSEMBLE_PARAMETER_INFO[parameter]
-            if key == 'integrator':
+            if parameter == 'integrator':
                 allowed = _ALLOWED_INTEGRATORS[self.ensemble]
             else:
                 allowed = info.allowed
