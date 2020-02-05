@@ -43,7 +43,7 @@ _ENSEMBLE_PARAMETER_INFO['outdcd'] =                _ParameterInfo("output.dcd",
 _ENSEMBLE_PARAMETER_INFO['state_report_interval'] = _ParameterInfo(0, int)
 _ENSEMBLE_PARAMETER_INFO['dcd_report_interval'] =   _ParameterInfo(0, int)
 _ENSEMBLE_PARAMETER_INFO['savestate'] =             _ParameterInfo("output.xml", str)
-_ENSEMBLE_PARAMETER_INFO['average_volume'] =        _ParameterInfo(False, True)
+_ENSEMBLE_PARAMETER_INFO['average_volume'] =        _ParameterInfo(False, bool)
 _ENSEMBLE_PARAMETER_INFO['average_energy'] =        _ParameterInfo(False, bool)
 
 
