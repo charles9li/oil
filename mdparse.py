@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from ast import literal_eval
-import argparse
 
 
 class _ParameterInfo(object):
@@ -8,7 +7,7 @@ class _ParameterInfo(object):
     def __init__(self, default_val, val_type, doc=None, allowed=None):
         self.default = default_val
         self.type = val_type
-        self.documentation = doc
+        self.doc = doc
         self.allowed = allowed
 
 
@@ -142,8 +141,9 @@ class SimulationOptions(_Options):
         print("===================================")
 
         # set simulation parameters
-        for key, val in _SIMULATION_PARAMETER_INFO:
-            self.set_active(key, val.default, val.type, doc=val.doc, allowed=val.allowed)
+        for parameter in _SIMULATION_PARAMETER_INFO:
+            info = _SIMULATION_PARAMETER_INFO[parameter]
+            self.set_active(key, info.default, info.type, doc=info.doc, allowed=info.allowed)
 
         # set parameters for each ensemble
         for ensemble_args in self.ensembles:
@@ -178,11 +178,13 @@ class _EnsembleOptions(_Options):
         print("===========================")
 
         # set ensemble options
-        for key, val in _ENSEMBLE_PARAMETER_INFO:
+        for parameter in _ENSEMBLE_PARAMETER_INFO:
+            info = _ENSEMBLE_PARAMETER_INFO[parameter]
             if key == 'integrator':
-                self.set_active(key, val.default, val.type, doc=val.doc, allowed=_ALLOWED_INTEGRATORS[self.ensemble])
+                allowed = _ALLOWED_INTEGRATORS[self.ensemble]
             else:
-                self.set_active(key, val.default, val.type, doc=val.doc, allowed=val.allowed)
+                allowed = info.allowed
+            self.set_active(key, info.default, info.type, doc=info.doc, allowed=allowed)
 
 
 if __name__ == '__main__':
