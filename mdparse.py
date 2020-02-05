@@ -82,11 +82,11 @@ class _Options(object):
         # check if value is allowed
         if type(allowed) is list:
             if val not in allowed:
-                raise Exception("'{0}' is not an allowed for for the '{1}' parameter.".format(val, key))
+                raise Exception("'{}' is not an allowed for for the '{}' parameter.".format(val, key))
 
         # check if value is of correct type
         if val is not None and type(val) is not value_type:
-            raise Exception("'{0}' cannot be of '{1}' type.".format(val, type(val).__name__))
+            raise Exception("For the '{}' parameter, '{}' cannot be type '{}'.".format(key, val, value_type.__name__))
 
         # set value to key in activeOptions
         self.activeOptions[key] = val
@@ -185,8 +185,3 @@ class _EnsembleOptions(_Options):
             else:
                 allowed = info.allowed
             self.set_active(parameter, info.default, info.type, doc=info.doc, allowed=allowed)
-
-
-if __name__ == '__main__':
-    for key in _ENSEMBLE_PARAMETER_INFO:
-        print(key)
