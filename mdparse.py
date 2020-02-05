@@ -3,6 +3,49 @@ from ast import literal_eval
 import argparse
 
 
+class _ParameterInfo(object):
+
+    def __init__(self, default_val, val_type, doc=None, allowed=None):
+        self.default = default_val
+        self.type = val_type
+        self.documentation = doc
+        self.allowed = allowed
+
+
+_ALLOWED_NONBONDED_METHODS = ["NoCutoff", "CutoffNonPeriodic", "CutoffPeriodic", "Ewald", "PME", "LJPME"]
+
+_SIMULATION_PARAMETER_INFO = {'topfile':                _ParameterInfo('system.top', str),
+                              'grofile':                _ParameterInfo('box.gro', str),
+                              'incoord':                _ParameterInfo('in.pdb', str),
+                              'nonbonded_method':       _ParameterInfo('PME', str, allowed=_ALLOWED_NONBONDED_METHODS),
+                              'nonbonded_cutoff':       _ParameterInfo(0.9, float),
+                              'dispersion_correction':  _ParameterInfo(True, bool),
+                              'ewald_error_tolerance':  _ParameterInfo(0.005, float),
+                              'temperature':            _ParameterInfo(0.0, float),
+                              'gentemp':                _ParameterInfo(0.0, float),
+                              'pressure':               _ParameterInfo(0.0, float),
+                              'collision_rate':         _ParameterInfo(1.0, float)}
+
+_ALLOWED_INTEGRATORS = {'NVE': ['Verlet'],
+                        'NVT': ['Langevin'],
+                        'NPT': ['Langevin']}
+_ALLOWED_ENSEMBLES = list(_ALLOWED_INTEGRATORS.keys())
+
+_ENSEMBLE_PARAMETER_INFO = {'ensemble':                 _ParameterInfo('NVE', str, allowed=_ALLOWED_ENSEMBLES),
+                            'integrator':               _ParameterInfo('Verlet', str),
+                            'timestep':                 _ParameterInfo(1.0, float),
+                            'minimize':                 _ParameterInfo(False, bool),
+                            'equilibrate':              _ParameterInfo(0, int),
+                            'steps':                    _ParameterInfo(1000000, int),
+                            'outstate':                 _ParameterInfo("output.csv", str),
+                            'outdcd':                   _ParameterInfo("output.dcd", str),
+                            'state_report_interval':    _ParameterInfo(0, int),
+                            'dcd_report_interval':      _ParameterInfo(0, int),
+                            'savestate':                _ParameterInfo("output.xml", str),
+                            'average_volume':           _ParameterInfo(False, True),
+                            'average_energy':           _ParameterInfo(False, bool)}
+
+
 class _Options(object):
 
     def __getattr__(self, attr):
@@ -93,40 +136,12 @@ class SimulationOptions(_Options):
                         option_parser.userOptions[key] = val
 
         # print header
-        print("Parsing parameters from input file.")
+        print("\nParsing parameters from input file.")
         print("===================================")
 
-        # set parameters for input files
-        self.set_active('topfile', 'system.top', str,
-                        doc="Gromacs system.top file")
-        self.set_active('grofile', 'box.gro', str,
-                        doc="Gromacs .gro file, we just use for box")
-        self.set_active('incoord', 'in.pdb', str,
-                        doc="input file, must be .pdb or .xml")
-
-        # set parameters for force field
-        self.set_active('nonbonded_method', 'PME', str,
-                        doc="Set the method for nonbonded interactions.",
-                        allowed=["NoCutoff", "CutoffNonPeriodic", "CutoffPeriodic", "Ewald", "PME", "LJPME"])
-        self.set_active('nonbonded_cutoff', 0.9, float,
-                        doc="Nonbonded cutoff distance in nanometers.")
-        self.set_active('dispersion_correction', True, bool,
-                        doc="Isotropic long-range dispersion correction for periodic systems.")
-        self.set_active('ewald_error_tolerance', 0.0005, float,
-                        doc="Error tolerance for Ewald, PME, LJPME methods. Don't go below 5e-5 for PME unless running "
-                            "in double precision.")
-        self.set_active('dispersion_correction', True, bool,
-                        doc="Isotropic long-range dispersion correction for periodic systems.")
-
-        # set simulation conditions
-        self.set_active('temperature', 0.0, float,
-                        doc="Simulation temperature for Langevin integrator or Andersen thermostat.")
-        self.set_active('gentemp', self.temperature, float,
-                        doc="Specify temperature for generating velocities")
-        self.set_active('pressure', 0.0, float,
-                        doc="Simulation pressure; set a positive number to activate.")
-        self.set_active('collision_rate', 1.0, float,
-                        "Collision rate of system is 1/ps, used in some integrators.")
+        # set simulation parameters
+        for key, val in _SIMULATION_PARAMETER_INFO:
+            self.set_active(key, val.default, val.type, doc=val.doc, allowed=val.allowed)
 
         # set parameters for each ensemble
         for ensemble_args in self.ensembles:
@@ -157,39 +172,15 @@ class _EnsembleOptions(_Options):
     def set_active_all(self):
 
         # print header
-        print()
-        print("Parsing ensemble arguments.")
+        print("\nParsing ensemble arguments.")
         print("===========================")
 
-        # set simulation parameters
-        self.set_active('ensemble', 'NVE', str,
-                        doc="Ensemble",
-                        allowed=['NVE', 'NVT', 'NPT'])
-        self.set_active('integrator', 'Verlet', str,
-                        doc="Integrator to use for simulation",
-                        allowed=self.ALLOWED_INTEGRATORS[self.ensemble])
-        self.set_active('timestep', 1.0, float,
-                        doc="Timestep in femtoseconds.")
-        self.set_active('minimize', False, bool,
-                        doc="Whether or not to minimize energy")
-        self.set_active('equilibrate', 0, int,
-                        doc="Number of steps reserved for equilibration")
-        self.set_active('steps', 1000000, int,
-                        doc="Number of steps for simulation")
-        self.set_active('outstate', "output.csv", str,
-                        doc="state output file name")
-        self.set_active('outdcd', "output.dcd", str,
-                        doc="DCD output file")
-        self.set_active('state_report_interval', 0, int,
-                        doc="Number of steps between every state report")
-        self.set_active('dcd_report_interval', 0, int,
-                        doc="Number of steps between every DCD report")
-        self.set_active('savestate', "", str,
-                        'xml file that contains state information')
-        self.set_active('average_volume', False, bool,
-                        doc="Whether or not to run simulation so that it averages volume.")
-        self.set_active('average_energy', False, bool,
-                        doc="Whether or not to run simulation so that it averages energy.")
+        # set ensemble options
+        for key, val in _ENSEMBLE_PARAMETER_INFO:
+            if key == 'integrator':
+                self.set_active(key, val.default, val.type, doc=val.doc, allowed=_ALLOWED_INTEGRATORS[self.ensemble])
+            else:
+                self.set_active(key, val.default, val.type, doc=val.doc, allowed=val.allowed)
 
 
 if __name__ == '__main__':
