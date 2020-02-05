@@ -14,12 +14,10 @@ from simtk.openmm.app import *
 from simtk.openmm import *
 from simtk.unit import *
 from parmed import gromacs
+from openmmtools.integrators import NoseHooverChainVelocityVerletIntegrator
 
 # MDTraj import
 import mdtraj as md
-
-# Numpy import
-import numpy as np
 
 # Custom statistical analysis module
 from openmm_stats import *
@@ -151,6 +149,12 @@ def _create_integrator(ensemble_args):
     if ensemble_args.integrator == 'Verlet':
         time_step = ensemble_args.timestep*femtosecond
         return VerletIntegrator(time_step)
+    if ensemble_args.integrator == 'NoseHooverChainVelocityVerlet':
+        temperature = ensemble_args.temperature*kelvin
+        friction = ensemble_args.friction/picosecond
+        time_step = ensemble_args.timestep*femtosecond
+        # TODO: add option to change other parameters
+        return NoseHooverChainVelocityVerletIntegrator(temperature, friction, time_step)
 
 
 def _set_velocities_to_temperature(simulation, args):

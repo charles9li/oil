@@ -41,8 +41,8 @@ class _ParameterInfo(object):
 # allowed values for nonbonded methods, integrators, and ensembles
 _ALLOWED_NONBONDED_METHODS = ["NoCutoff", "CutoffNonPeriodic", "CutoffPeriodic", "Ewald", "PME", "LJPME"]
 _ALLOWED_INTEGRATORS = {'NVE': ['Verlet'],
-                        'NVT': ['Langevin'],
-                        'NPT': ['Langevin']}
+                        'NVT': ['Langevin', 'NoseHooverChainVelocityVerlet'],
+                        'NPT': ['Langevin', 'NoseHooverChainVelocityVerlet']}
 _ALLOWED_ENSEMBLES = list(_ALLOWED_INTEGRATORS.keys())
 
 # parameter information for the main simulation
