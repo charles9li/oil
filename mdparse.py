@@ -143,7 +143,7 @@ class SimulationOptions(_Options):
         # set simulation parameters
         for parameter in _SIMULATION_PARAMETER_INFO:
             info = _SIMULATION_PARAMETER_INFO[parameter]
-            self.set_active(key, info.default, info.type, doc=info.doc, allowed=info.allowed)
+            self.set_active(parameter, info.default, info.type, doc=info.doc, allowed=info.allowed)
 
         # set parameters for each ensemble
         for ensemble_args in self.ensembles:
@@ -184,7 +184,7 @@ class _EnsembleOptions(_Options):
                 allowed = _ALLOWED_INTEGRATORS[self.ensemble]
             else:
                 allowed = info.allowed
-            self.set_active(key, info.default, info.type, doc=info.doc, allowed=allowed)
+            self.set_active(parameter, info.default, info.type, doc=info.doc, allowed=allowed)
 
 
 if __name__ == '__main__':
