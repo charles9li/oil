@@ -1,18 +1,51 @@
+"""
+The mdparse module is used to parse user input from an input file. The information is stored in a
+SimulationOptions object and passed to simulate.py to run an OpenMM simulation.
+
+@author Charles Li <charlesli@ucsb.edu>
+"""
 from collections import OrderedDict
 from ast import literal_eval
 
 
 class _ParameterInfo(object):
+    """
+    This class contains the following information for each parameter:
+        1. default value
+        2. type
+        3. documentation
+        4. allowed values
+    """
 
-    def __init__(self, default_val, val_type, doc=None, allowed=None):
+    def __init__(self, default_val, val_type, doc="No documentation available.", allowed=None):
+        """
+        Create a _ParameterInfo instance.
+
+        Parameters
+        ----------
+        default_val : val_type
+            default value of parameter
+        val_type : type
+            parameter type
+        doc : str
+            parameter documentation
+        allowed : NoneType or list
+            allowed values for parameter, if applicable
+        """
         self.default = default_val
         self.type = val_type
         self.doc = doc
         self.allowed = allowed
 
 
+# allowed values for nonbonded methods, integrators, and ensembles
 _ALLOWED_NONBONDED_METHODS = ["NoCutoff", "CutoffNonPeriodic", "CutoffPeriodic", "Ewald", "PME", "LJPME"]
+_ALLOWED_INTEGRATORS = {'NVE': ['Verlet'],
+                        'NVT': ['Langevin'],
+                        'NPT': ['Langevin']}
+_ALLOWED_ENSEMBLES = list(_ALLOWED_INTEGRATORS.keys())
 
+# parameter information for the main simulation
 _SIMULATION_PARAMETER_INFO = OrderedDict()
 _SIMULATION_PARAMETER_INFO['topfile'] =                 _ParameterInfo('system.top', str)
 _SIMULATION_PARAMETER_INFO['grofile'] =                 _ParameterInfo('box.gro', str)
@@ -26,11 +59,7 @@ _SIMULATION_PARAMETER_INFO['gentemp'] =                 _ParameterInfo(0.0, floa
 _SIMULATION_PARAMETER_INFO['pressure'] =                _ParameterInfo(0.0, float)
 _SIMULATION_PARAMETER_INFO['collision_rate'] =          _ParameterInfo(1.0, float)
 
-_ALLOWED_INTEGRATORS = {'NVE': ['Verlet'],
-                        'NVT': ['Langevin'],
-                        'NPT': ['Langevin']}
-_ALLOWED_ENSEMBLES = list(_ALLOWED_INTEGRATORS.keys())
-
+# parameter information for each individual ensemble
 _ENSEMBLE_PARAMETER_INFO = OrderedDict()
 _ENSEMBLE_PARAMETER_INFO['ensemble'] =              _ParameterInfo('NVE', str, allowed=_ALLOWED_ENSEMBLES)
 _ENSEMBLE_PARAMETER_INFO['integrator'] =            _ParameterInfo('Verlet', str)
@@ -48,6 +77,10 @@ _ENSEMBLE_PARAMETER_INFO['average_energy'] =        _ParameterInfo(False, bool)
 
 
 class _Options(object):
+    """
+    The Options class has methods to set values for parameters. Parent class of SimulationOptions
+    and _EnsembleOptions.
+    """
 
     def __getattr__(self, attr):
         return self.activeOptions[attr]
@@ -59,14 +92,19 @@ class _Options(object):
 
     def set_active(self, key, default, value_type, doc="No documentation available.", allowed=None):
         """ Set one option.  The arguments are:
-        key     : The name of the option.
-        default : The default value.
-        typ     : The type of the value.
-        doc     : The documentation string.
-        allowed : An optional list of allowed values.
-        depend  : A condition that must be True for the option to be activated.
-        clash   : A condition that must be False for the option to be activated.
-        msg     : A warning that is printed out if the option is not activated.
+
+        Parameters
+        ----------
+        key : str
+            parameter name
+        default : value_type
+            default value of parameter
+        value_type : type
+            parameter type
+        doc : str
+            parameter documentation
+        allowed : NoneType or list
+            allowed values for parameter, if applicable
         """
         # find value of key
         is_default = False
