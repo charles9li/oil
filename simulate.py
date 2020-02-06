@@ -5,6 +5,10 @@ inputs from an input file and determine simulation conditions, force methods, an
 @author Charles Li <charlesli@ucsb.edu>
 """
 
+# ============================================================================================
+# IMPORTS
+# ============================================================================================
+
 # imports for command line arguments
 import argparse
 import mdparse
@@ -22,6 +26,10 @@ import mdtraj as md
 # Custom statistical analysis module
 from openmm_stats import *
 
+# ============================================================================================
+# GLOBAL LISTS AND DICTIONARIES
+# ============================================================================================
+
 # Dictionary of nonbonded methods
 NONBONDED_METHODS = {'NoCutoff':            NonbondedForce.NoCutoff,
                      'CutoffNonPeriodic':   NonbondedForce.CutoffNonPeriodic,
@@ -35,9 +43,22 @@ BAROSTATS = [MonteCarloBarostat,
              MonteCarloMembraneBarostat]
 
 
+# ============================================================================================
+# SYSTEM
+# ============================================================================================
+# Methods used to create an OpenMM system.
+
+
 def _create_system(top, args):
-    system = top.createSystem(nonbondedMethod=NoCutoff, ewaldErrorTolerance=args.ewald_error_tolerance,
+    """
+    Creates an OpenMM system from a Parmed Topology.
+    """
+    # create system
+    system = top.createSystem(nonbondedMethod=NoCutoff,
+                              ewaldErrorTolerance=args.ewald_error_tolerance,
                               nonbondedCutoff=args.nonbonded_cutoff*nanometer)
+
+    # turn on/off dispersion correction and set nonbonded method
     for force in _get_nonbonded_forces(system):
         force.setUseDispersionCorrection(args.dispersion_correction)
         force.setNonbondedMethod(NONBONDED_METHODS[args.nonbonded_method])
@@ -47,20 +68,20 @@ def _create_system(top, args):
 def _get_nonbonded_forces(system):
     """
     Returns a list of all nonbonded forces in the input system.
-
-    :param system: OpenMM system
-    :return: list of NonbondedForce instances
     """
     return [force for force in system.getForces() if isinstance(force, NonbondedForce)]
+
+
+# ============================================================================================
+# BAROSTAT
+# ============================================================================================
+# Methods used to modify the barostat of a system.
 
 
 def _modify_barostat(system, ensemble_args):
     """
     Modifies the barostat depending on the ensemble in which the current simulation is running in.
     Adds a barostat if running NPT and removes it if running NVE or NVT.
-
-    :param system: OpenMM system
-    :param ensemble_args: ensemble arguments
     """
     ensemble = ensemble_args.ensemble
     if ensemble in ['NVE', 'NVT']:
@@ -70,6 +91,9 @@ def _modify_barostat(system, ensemble_args):
 
 
 def _add_barostat(system, ensemble_args):
+    """
+    Adds a barostat to the system if it doesn't already have one.
+    """
     if not _has_barostat(system):
         temperature = ensemble_args.temperature*kelvin
         pressure = ensemble_args.pressure*bar
@@ -80,6 +104,9 @@ def _add_barostat(system, ensemble_args):
 
 
 def _remove_barostat(system):
+    """
+    Removes the barostat from the system if it has one.
+    """
     system_forces = system.getForces()
     for force in system_forces:
         if _is_barostat(force):
@@ -88,6 +115,9 @@ def _remove_barostat(system):
 
 
 def _has_barostat(system):
+    """
+    Returns True if the system has a barostat.
+    """
     for force in system.getForces():
         if _is_barostat(force):
             return True
@@ -95,19 +125,30 @@ def _has_barostat(system):
 
 
 def _is_barostat(force):
+    """
+    Returns true if the force is a barostat.
+    """
     for barostat in BAROSTATS:
         if isinstance(force, barostat):
             return True
     return False
 
 
+# ============================================================================================
+# SIMULATION
+# ============================================================================================
+# Methods used to initialize a simulation.
+
+
 def _create_simulation(simulation, topology, system, args, ensemble_args):
     # retrieve positions, velocities, and box vectors
     if simulation is None:
+        # if this is the first ensemble
         positions = _get_positions_from_incoord(args)
         velocities = None
         box_vectors = None
     else:
+        # initialize simulation using previous ensemble
         state = simulation.context.getState(getPositions=True, getVelocities=True)
         positions = state.getPositions()
         velocities = state.getVelocities()
@@ -131,6 +172,10 @@ def _create_simulation(simulation, topology, system, args, ensemble_args):
     # set box vectors
     if box_vectors is not None:
         simulation.context.setPeriodicBoxVectors(*box_vectors)
+
+    # load state from xml file if indicated
+    if ensemble_args.load_from_savestate:
+        simulation.loadState(ensemble_args.savestate)
 
     return simulation
 
@@ -173,6 +218,11 @@ def _equilibrate(simulation, ensemble_args):
         simulation.step(equilibration_steps)
 
 
+# ============================================================================================
+# REPORTERS
+# ============================================================================================
+
+
 def _modify_reporters(simulation, ensemble_args):
 
     # remove current reporters
@@ -202,6 +252,16 @@ def _add_dcd_reporter(simulation, ensemble_args):
         filename = ensemble_args.outdcd
         dcd_reporter = DCDReporter(filename, report_interval, enforcePeriodicBox=False)
         simulation.reporters.append(dcd_reporter)
+
+
+def _change_reporter_names(ensemble_args):
+    ensemble_args.outstate = ensemble_args.outstate.split('.')[0] + "_{}.csv".format(ensemble_args.savestate_num)
+    ensemble_args.outdcd = ensemble_args.outdcd.split('.')[0] + "_{}.dcd".format(ensemble_args.savestate_num)
+
+
+# ============================================================================================
+# RUN
+# ============================================================================================
 
 
 def _run_simulation(simulation, args, ensemble_args):
@@ -269,6 +329,11 @@ def _ensemble_name_list(args):
     return [ensemble_args.ensemble for ensemble_args in args.ensembles]
 
 
+# ============================================================================================
+# MAIN
+# ============================================================================================
+
+
 def main(parameter_file="params.in"):
     """
     Creates an OpenMM system and runs simulations with the appropriate integrator using
@@ -306,6 +371,9 @@ def main(parameter_file="params.in"):
         # minimize energy and equilibrate
         _minimize_energy(simulation, ensemble_args)
         _equilibrate(simulation, ensemble_args)
+
+        # change reporter file names if loading from savestate
+        _change_reporter_names(ensemble_args)
 
         # add and/or remove reporters
         _modify_reporters(simulation, ensemble_args)

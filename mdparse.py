@@ -47,33 +47,35 @@ _ALLOWED_ENSEMBLES = list(_ALLOWED_INTEGRATORS.keys())
 
 # parameter information for the main simulation
 _SIMULATION_PARAMETER_INFO = OrderedDict()
-_SIMULATION_PARAMETER_INFO['topfile'] =                 _ParameterInfo('system.top', str)
-_SIMULATION_PARAMETER_INFO['grofile'] =                 _ParameterInfo('box.gro', str)
-_SIMULATION_PARAMETER_INFO['incoord'] =                 _ParameterInfo('in.pdb', str)
-_SIMULATION_PARAMETER_INFO['nonbonded_method'] =        _ParameterInfo('PME', str, allowed=_ALLOWED_NONBONDED_METHODS)
-_SIMULATION_PARAMETER_INFO['nonbonded_cutoff'] =        _ParameterInfo(0.9, float)
-_SIMULATION_PARAMETER_INFO['dispersion_correction'] =   _ParameterInfo(True, bool)
-_SIMULATION_PARAMETER_INFO['ewald_error_tolerance'] =   _ParameterInfo(0.005, float)
-_SIMULATION_PARAMETER_INFO['temperature'] =             _ParameterInfo(0.0, float)
-_SIMULATION_PARAMETER_INFO['gentemp'] =                 _ParameterInfo(0.0, float)
-_SIMULATION_PARAMETER_INFO['pressure'] =                _ParameterInfo(0.0, float)
-_SIMULATION_PARAMETER_INFO['collision_rate'] =          _ParameterInfo(1.0, float)
+_SIMULATION_PARAMETER_INFO['topfile'] = _ParameterInfo('system.top', str)
+_SIMULATION_PARAMETER_INFO['grofile'] = _ParameterInfo('box.gro', str)
+_SIMULATION_PARAMETER_INFO['incoord'] = _ParameterInfo('in.pdb', str)
+_SIMULATION_PARAMETER_INFO['nonbonded_method'] = _ParameterInfo('PME', str, allowed=_ALLOWED_NONBONDED_METHODS)
+_SIMULATION_PARAMETER_INFO['nonbonded_cutoff'] = _ParameterInfo(0.9, float)
+_SIMULATION_PARAMETER_INFO['dispersion_correction'] = _ParameterInfo(True, bool)
+_SIMULATION_PARAMETER_INFO['ewald_error_tolerance'] = _ParameterInfo(0.005, float)
+_SIMULATION_PARAMETER_INFO['temperature'] = _ParameterInfo(0.0, float)
+_SIMULATION_PARAMETER_INFO['gentemp'] = _ParameterInfo(0.0, float)
+_SIMULATION_PARAMETER_INFO['pressure'] = _ParameterInfo(0.0, float)
+_SIMULATION_PARAMETER_INFO['collision_rate'] = _ParameterInfo(1.0, float)
 
 # parameter information for each individual ensemble
 _ENSEMBLE_PARAMETER_INFO = OrderedDict()
-_ENSEMBLE_PARAMETER_INFO['ensemble'] =              _ParameterInfo('NVE', str, allowed=_ALLOWED_ENSEMBLES)
-_ENSEMBLE_PARAMETER_INFO['integrator'] =            _ParameterInfo('Verlet', str)
-_ENSEMBLE_PARAMETER_INFO['timestep'] =              _ParameterInfo(1.0, float)
-_ENSEMBLE_PARAMETER_INFO['minimize'] =              _ParameterInfo(False, bool)
-_ENSEMBLE_PARAMETER_INFO['equilibrate'] =           _ParameterInfo(0, int)
-_ENSEMBLE_PARAMETER_INFO['steps'] =                 _ParameterInfo(1000000, int)
-_ENSEMBLE_PARAMETER_INFO['outstate'] =              _ParameterInfo("output.csv", str)
-_ENSEMBLE_PARAMETER_INFO['outdcd'] =                _ParameterInfo("output.dcd", str)
+_ENSEMBLE_PARAMETER_INFO['ensemble'] = _ParameterInfo('NVE', str, allowed=_ALLOWED_ENSEMBLES)
+_ENSEMBLE_PARAMETER_INFO['integrator'] = _ParameterInfo('Verlet', str)
+_ENSEMBLE_PARAMETER_INFO['timestep'] = _ParameterInfo(1.0, float)
+_ENSEMBLE_PARAMETER_INFO['minimize'] = _ParameterInfo(False, bool)
+_ENSEMBLE_PARAMETER_INFO['equilibrate'] = _ParameterInfo(0, int)
+_ENSEMBLE_PARAMETER_INFO['steps'] = _ParameterInfo(0, int)
+_ENSEMBLE_PARAMETER_INFO['outstate'] = _ParameterInfo("output.csv", str)
+_ENSEMBLE_PARAMETER_INFO['outdcd'] = _ParameterInfo("output.dcd", str)
+_ENSEMBLE_PARAMETER_INFO['savestate'] = _ParameterInfo("output.xml", str)
 _ENSEMBLE_PARAMETER_INFO['state_report_interval'] = _ParameterInfo(0, int)
-_ENSEMBLE_PARAMETER_INFO['dcd_report_interval'] =   _ParameterInfo(0, int)
-_ENSEMBLE_PARAMETER_INFO['savestate'] =             _ParameterInfo("output.xml", str)
-_ENSEMBLE_PARAMETER_INFO['average_volume'] =        _ParameterInfo(False, bool)
-_ENSEMBLE_PARAMETER_INFO['average_energy'] =        _ParameterInfo(False, bool)
+_ENSEMBLE_PARAMETER_INFO['dcd_report_interval'] = _ParameterInfo(0, int)
+_ENSEMBLE_PARAMETER_INFO['average_volume'] = _ParameterInfo(False, bool)
+_ENSEMBLE_PARAMETER_INFO['average_energy'] = _ParameterInfo(False, bool)
+_ENSEMBLE_PARAMETER_INFO['load_from_savestate'] = _ParameterInfo(False, bool)
+_ENSEMBLE_PARAMETER_INFO['savestate_num'] = _ParameterInfo(0, int)
 
 
 class _Options(object):
@@ -201,7 +203,6 @@ class SimulationOptions(_Options):
 
 
 class _EnsembleOptions(_Options):
-
     ALLOWED_INTEGRATORS = {'NVE': ['Verlet'],
                            'NVT': ['Langevin'],
                            'NPT': ['Langevin']}
